@@ -1,0 +1,15 @@
+# Miscellaneous
+*.class
+*.jar
+*.log
+.DS_Store
+Thumbs.db
+.svn/
+
+.gradle
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+**/build/
+
+!src/**/build/
