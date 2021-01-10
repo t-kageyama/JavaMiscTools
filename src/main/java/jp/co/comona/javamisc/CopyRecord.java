@@ -805,6 +805,6 @@ public class CopyRecord {
 	 * @param argName2 another argument name.
 	 */
 	private static void duplicateValueFoundIn(String argName, String argName2) {
-		System.out.println("[ERROR] you cannot "+ argName + " which assigned in " + argName2);
+		System.out.println("[ERROR] you cannot assign " + argName + " which assigned in " + argName2);
 	}
 }
