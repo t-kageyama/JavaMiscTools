@@ -1,63 +1,33 @@
 package jp.co.comona.javamisc.sql;
 
+import jp.co.comona.javamisc.Util;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 
-import java.io.BufferedReader;
-import java.io.Console;
-import java.io.InputStreamReader;
-import java.io.IOException;
-import java.sql.Connection;
-import java.sql.Date;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.Statement;
 import java.sql.SQLException;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.sql.Types;
-import java.text.SimpleDateFormat;
-import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
-
-import jp.co.comona.javamisc.Util;
 
 /**
  * copy SQL record tool.
  * date: 2021/01/09
  * @author Toru Kageyama <info@comona.co.jp>
  */
-public class CopyRecord {
+public class CopyRecord extends SQLRecord {
 
 	// MARK: - Static Properties
-	private static final int SUCCESS_VALUE = 0;
-	private static final int ERROR_VALUE = -1;
+	private static final char REPLACE_SHORT_OPTION = 'r';
+	private static final String REPLACE_SHORT_OPTION_STR = "" + REPLACE_SHORT_OPTION;
 
 	// MARK: - Properties
-	private final Options options;
-	private final CommandLine cmd;
-	private Connection con = null;
-	private ResultSetMetaData meta = null;
-
-	private String databaseName = null;
-	private String tableName = null;
-	private String hostName = "localhost";
-	private String userName = null;
-	private String password = null;
 	private String[] keys = null;
 	private String[] values = null;
-	private String[] columns = null;
-	private String[] replaces = null;
 	private String[] defaults = null;
-	private String[] nowColumns = null;
-	private String[] nulls = null;
-	private boolean prompt = false;
 
 	// MARK: - Constructor
 	/**
@@ -66,88 +36,16 @@ public class CopyRecord {
 	 * @param cmd command line.
 	 */
 	protected CopyRecord(Options options, CommandLine cmd) {
-		super();
-		this.options = options;
-		this.cmd = cmd;
+		super(options, cmd);
 	}
 
-	// MARK: - SQL
-	/**
-	 * connect to database.
-	 * @return true if connected.
-	 * @throws ClassNotFoundException when driver load error.
-	 * @throws SQLException when SQL connection error.
-	 */
-	private boolean connect() throws ClassNotFoundException, SQLException {
-		Class.forName("com.mysql.jdbc.Driver");	// load MySQL database driver.
-
-		String url =  "jdbc:mysql://" + hostName + ":3306/" + databaseName + "?useUnicode=true&amp;autoReconnect=true&amp;characterEncoding=utf8";
-		if (prompt) {
-			// try 3 times.
-			for (int i = 0; i < 3; i++) {
-				try {
-					doPrompt(url);
-				}
-				catch (Exception ignored) {}
-				if (con != null) {
-					break;
-				}
-			}
-			return con != null;
-		}
-		else if (password != null) {
-			con = DriverManager.getConnection(url, userName, password);
-		}
-
-		return true;
-	}
-
-	/**
-	 * do prompt.
-	 * @param url connection URL.
-	 * @throws IOException when read terminal error.
-	 * @throws SQLException when SQL connection error.
-	 */
-	private void doPrompt(String url) throws IOException, SQLException {
-		Console console = System.console();
-		if (console != null) {
-			char[] passwordArray = console.readPassword("Enter password for user " + userName + ": ");
-			password = new String(passwordArray);
-		}
-		else {
-			System.out.print("Enter password for user " + userName + ": ");
-			BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-			password = br.readLine();
-		}
-		con = DriverManager.getConnection(url, userName, password);
-	}
-
-	/**
-	 * disconnect from database.
-	 * @throws SQLException when SQL disconnection error.
-	 */
-	private void disconnect() throws SQLException {
-		if (con != null) {
-			con.close();
-		}
-	}
-
-	/**
-	 * load metadata.
-	 * @throws SQLException when SQL error.
-	 */
-	private void loadMetadata() throws SQLException {
-		try (Statement stmt = con.createStatement(); ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName + " LIMIT 1 OFFSET 0")) {
-			meta = rs.getMetaData();
-		}
-	}
-
+	// MARK: - Process
 	/**
 	 * do process.
-	 * @throws Exception when error.
 	 */
-	private void doProcess() throws Exception {
-		StringBuilder sql = new StringBuilder("SELECT * FROM ");
+	@Override
+	protected void doProcess() throws Exception {
+		StringBuilder sql = new StringBuilder(SQL_SELECT_FROM);
 		sql.append(tableName).append(" WHERE ");
 		String key = keys[0];
 		sql.append(key).append(" = ?");
@@ -180,40 +78,44 @@ public class CopyRecord {
 		}
 	}
 
+	/**
+	 * duplicate record.
+	 * @param rs result set.
+	 * @throws Exception when error.
+	 */
 	private void duplicateRecord(ResultSet rs) throws Exception {
-		StringBuilder sql = new StringBuilder("INSERT INTO ");
-		sql.append(tableName).append(" VALUES(");
+		StringBuilder sql = new StringBuilder(SQL_INSERT_INTO);
+		sql.append(tableName).append(SQL_VALUES_START);
 		Map<String, Integer> columnIndexMap = new HashMap<>();
 		int defaultCount = 0;
 		for (int i = 0; i < meta.getColumnCount(); i++) {
 			int columnIndex = i + 1;
 			if (i > 0) {
-				sql.append(", ");
+				sql.append(SQL_COMMA);
 			}
 			String colName = meta.getColumnName(columnIndex);
 			if (putColumnIndex(columnIndexMap, colName, columnIndex - defaultCount)) {
-				sql.append('?');
+				sql.append(SQL_PREPARED_MARK);
 			}
 			else {
 				if (isDefaultValueColumn(columnIndex)) {
-					sql.append("DEFAULT");
+					sql.append(SQL_DEFAULT);
 					defaultCount++;
 				}
 				else if (isNowValueColumn(columnIndex)) {
-					sql.append("NOW()");
+					sql.append(SQL_NOW);
 					defaultCount++;
 				}
 				else if (isNullValueColumn(columnIndex)) {
-					sql.append("NULL");
+					sql.append(SQL_NULL);
 					defaultCount++;
 				}
 				else {
-					sql.append('?');
+					sql.append(SQL_PREPARED_MARK);
 				}
 			}
 		}
-
-		sql.append(')');
+		sql.append(SQL_VALUES_END);
 
 		// create prepared statement.
 		try (PreparedStatement ps = con.prepareStatement(sql.toString())) {
@@ -232,86 +134,6 @@ public class CopyRecord {
 			}
 			ps.execute();
 		}
-	}
-
-	/**
-	 * put prepare statement index to column.
-	 * @param columnIndexMap column to prepared statement index map.
-	 * @param colName column name.
-	 * @param columnIndex column prepared statement index.
-	 * @return true if index put to the map.
-	 */
-	private boolean putColumnIndex(Map<String, Integer> columnIndexMap, String colName, int columnIndex) {
-		for (String column : columns) {
-			if (column.compareToIgnoreCase(colName) == 0) {
-				columnIndexMap.put(column, columnIndex);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * put column value to prepared statement.
-	 * @param ps prepared statement.
-	 * @param columnIndexMap column to prepared statement index map.
-	 * @param colName column name.
-	 * @param columnType column type.
-	 * @return true if value put to the prepared statement.
-	 * @throws Exception when error.
-	 */
-	private boolean putColumnValue(PreparedStatement ps, Map<String, Integer> columnIndexMap, String colName, int columnType) throws Exception {
-		for (int i = 0; i < columns.length; i++) {
-			String column = columns[i];
-			if (column.compareToIgnoreCase(colName) == 0) {
-				Integer indexObj = columnIndexMap.get(column);
-				if (indexObj != null) {
-					String value = replaces[i];
-					int index = indexObj;
-					switch (columnType) {
-						case Types.INTEGER:
-							ps.setInt(index, Integer.parseInt(value));
-							break;
-						case Types.BIGINT:
-						case Types.DECIMAL:
-							ps.setLong(index, Long.parseLong(value));
-							break;
-						case Types.SMALLINT:
-							ps.setShort(index, Short.parseShort(value));
-							break;
-						case Types.TINYINT:
-							short v = Short.parseShort(value);
-							if ((v > 127) || (v < -128)) {
-								throw new Exception("TINYINT out of range at " + colName);
-							}
-							ps.setInt(index, v);
-							break;
-						case Types.FLOAT:
-							ps.setFloat(index, Float.parseFloat(value));
-							break;
-						case Types.DOUBLE:
-						case Types.NUMERIC:
-							ps.setDouble(index, Double.parseDouble(value));
-							break;
-						case Types.DATE:
-							ps.setDate(index, convertDate(value));
-							break;
-						case Types.TIMESTAMP:
-							ps.setTimestamp(index, convertTimestamp(value));
-							break;
-						case Types.TIME:
-							ps.setTime(index, convertTime(value));
-							break;
-
-						default:
-							ps.setString(index, value);
-							break;
-					}
-				}
-				return indexObj != null;
-			}
-		}
-		return false;
 	}
 
 	/**
@@ -421,61 +243,12 @@ public class CopyRecord {
 		}
 	}
 
-	/**
-	 * convert string to date.
-	 * @param value date value in string.
-	 * @return date.
-	 * @throws java.text.ParseException when parser error.
-	 */
-	private Date convertDate(String value) throws ParseException {
-		try {
-			SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-MM-dd");
-			return new Date(sdFormat.parse(value).getTime());
-		}
-		catch (Exception e) {
-			return convertDateTime(value);
-		}
-	}
-
-	/**
-	 * convert string to date.
-	 * @param value date value in string.
-	 * @return date.
-	 * @throws java.text.ParseException when parser error.
-	 */
-	private Date convertDateTime(String value) throws ParseException {
-		SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-		return new Date(sdFormat.parse(value).getTime());
-	}
-
-	/**
-	 * convert string to date.
-	 * @param value date value in string.
-	 * @return date.
-	 * @throws java.text.ParseException when parser error.
-	 */
-	private Time convertTime(String value) throws ParseException {
-		SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-		return new Time(sdFormat.parse("1970-01-01 " + value).getTime());
-	}
-
-	/**
-	 * convert string to date.
-	 * @param value date value in string.
-	 * @return date.
-	 * @throws java.text.ParseException when parser error.
-	 */
-	private Timestamp convertTimestamp(String value) throws ParseException {
-		SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-		return new Timestamp(sdFormat.parse(value).getTime());
-	}
-
 	// MARK: - Check
 	/**
 	 * check arguments.
-	 * @return 0 if success, positive if help, negative if error.
 	 */
-	private int checkArguments() {
+	@Override
+	protected int checkArguments() {
 		if (cmd.hasOption('?')) {
 			usage(options);
 			return 1;
@@ -485,36 +258,18 @@ public class CopyRecord {
 			usage(options);
 			return -1;
 		}
-		String[] databases = cmd.getOptionValues('d');	// database name check.
-		if (databases.length > 1) {
-			usage(options);
-			noMultipleOptions("database name");
+		if (!checkDatabaseName()) {
 			return -1;
 		}
-		databaseName = databases[0];
-		String[] tables = cmd.getOptionValues('t');	// table name check.
-		if (tables.length > 1) {
-			usage(options);
-			noMultipleOptions("table name");
+		if (!checkTableName()) {
 			return -1;
 		}
-		tableName = tables[0];
-		String[] hosts = cmd.getOptionValues('h');	// host name check.
-		if (hosts != null) {
-			if (hosts.length > 1) {
-				usage(options);
-				noMultipleOptions("host name");
-				return -1;
-			}
-			hostName = hosts[0];
-		}
-		String[] users = cmd.getOptionValues('u');	// user name check.
-		if (users.length > 1) {
-			usage(options);
-			noMultipleOptions("user name");
+		if (!checkHostName()) {
 			return -1;
 		}
-		userName = users[0];
+		if (!checkUserName()) {
+			return -1;
+		}
 
 		keys = cmd.getOptionValues('k');	// key & value count check.
 		if (Util.hasDuplicateValuesIgnoreCase(keys)) {
@@ -528,32 +283,11 @@ public class CopyRecord {
 			keyAndValueCountMustSame();
 			return -1;
 		}
-		columns = cmd.getOptionValues('c');	// column & replace count check.
-		if (Util.hasDuplicateValuesIgnoreCase(columns)) {
-			usage(options);
-			duplicateValueFound("column name to replace value");
+		if (!checkColumnsAndReplaces()) {
 			return -1;
 		}
-		replaces = cmd.getOptionValues('r');
-		if (columns.length != replaces.length) {
-			usage(options);
-			columnAndReplaceCountMustSame();
+		if (!checkUserPassword()) {
 			return -1;
-		}
-		prompt = cmd.hasOption('p');
-		if (prompt && cmd.hasOption('P')) {	// password & prompt option check.
-			usage(options);
-			doNotAssignPromptAndPasswordAtSameTime();
-			return -1;
-		}
-		String[] passwords = cmd.getOptionValues('P');	// password check.
-		if (passwords != null) {
-			if (passwords.length > 1) {
-				usage(options);
-				noMultipleOptions("user password");
-				return -1;
-			}
-			password = passwords[0];
 		}
 		defaults = cmd.getOptionValues('D');	// default value columns.
 		if (defaults != null) {
@@ -568,18 +302,10 @@ public class CopyRecord {
 				return -1;
 			}
 		}
-		nowColumns = cmd.getOptionValues('n');	// now value columns.
+		if (!checkNowColumns()) {
+			return -1;
+		}
 		if (nowColumns != null) {
-			if (Util.hasDuplicateValuesIgnoreCase(nowColumns)) {
-				usage(options);
-				duplicateValueFound("use NOW() for the column");
-				return -1;
-			}
-			if (Util.hasDuplicateValuesIgnoreCase(nowColumns, columns)) {
-				usage(options);
-				duplicateValueFoundIn("use NOW() for the column", "column name to replace value");
-				return -1;
-			}
 			if (defaults != null) {
 				if (Util.hasDuplicateValuesIgnoreCase(nowColumns, defaults)) {
 					usage(options);
@@ -588,29 +314,14 @@ public class CopyRecord {
 				}
 			}
 		}
-		nulls = cmd.getOptionValues('N');	// null value columns.
+		if (!checkNullColumns()) {
+			return -1;
+		}
 		if (nulls != null) {
-			if (Util.hasDuplicateValuesIgnoreCase(nulls)) {
-				usage(options);
-				duplicateValueFound("use NOW() for the column");
-				return -1;
-			}
-			if (Util.hasDuplicateValuesIgnoreCase(nulls, columns)) {
-				usage(options);
-				duplicateValueFoundIn("use null for the column", "column name to replace value");
-				return -1;
-			}
 			if (defaults != null) {
 				if (Util.hasDuplicateValuesIgnoreCase(nulls, defaults)) {
 					usage(options);
 					duplicateValueFoundIn("use null for the column", "use NOW() for the column");
-					return -1;
-				}
-			}
-			if (nowColumns != null) {
-				if (Util.hasDuplicateValuesIgnoreCase(nulls, nowColumns)) {
-					usage(options);
-					duplicateValueFoundIn("use null for the column", "use column name to use default value");
 					return -1;
 				}
 			}
@@ -640,37 +351,11 @@ public class CopyRecord {
 	}
 
 	/**
-	 * is now value column.
-	 * @param columnIndex column index.
-	 * @return true if use NOW().
-	 * @throws SQLException when SQL error.
+	 * get replace values short option.
 	 */
-	private boolean isNowValueColumn(int columnIndex) throws SQLException {
-		if (nowColumns != null) {
-			for (String now : nowColumns) {
-				if (now.compareToIgnoreCase(meta.getColumnName(columnIndex)) == 0) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * is null value column.
-	 * @param columnIndex column index.
-	 * @return true if use null.
-	 * @throws SQLException when SQL error.
-	 */
-	private boolean isNullValueColumn(int columnIndex) throws SQLException {
-		if (nulls != null) {
-			for (String nullCol : nulls) {
-				if (nullCol.compareToIgnoreCase(meta.getColumnName(columnIndex)) == 0) {
-					return true;
-				}
-			}
-		}
-		return false;
+	@Override
+	protected char replaceValueShortOption() {
+		return REPLACE_SHORT_OPTION;
 	}
 
 	// MARK: - Entry Point
@@ -685,12 +370,12 @@ public class CopyRecord {
 		options.addOption("t", "table", true, "table name");
 		options.addOption("h", "host", true, "[host name, localhost as default]");
 		options.addOption("u", "user", true, "user name");
-		options.addOption("p", "prompt", false, "[prompt password]");
-		options.addOption("P", "password", true, "[user password]");
+		options.addOption("p", "prompt", false, "[prompt password] do not set with -P");
+		options.addOption("P", "password", true, "[user password] do not set with -p");
 		options.addOption("k", "key-name", true, "key name");
 		options.addOption("v", "key-value", true, "key value");
 		options.addOption("c", "column-name", true, "column name to replace value");
-		options.addOption("r", "replace-value", true, "replace value for column");
+		options.addOption(REPLACE_SHORT_OPTION_STR, "replace-value", true, "replace value for column");
 		options.addOption("D", "default-value", true, "use default value for the column");
 		options.addOption("n", "now", true, "use NOW() for the column");
 		options.addOption("N", "null", true, "use null for the column");
@@ -703,15 +388,11 @@ public class CopyRecord {
 				System.exit(argCheck < 0 ? ERROR_VALUE : SUCCESS_VALUE);
 			}
 
-			if (copyRecord.connect()) {
-				copyRecord.loadMetadata();
-				copyRecord.doProcess();
-				copyRecord.disconnect();
-			}
+			copyRecord.connectAndProcess();
 		}
 		catch (org.apache.commons.cli.ParseException e) {
 			e.printStackTrace(System.err);
-			usage(options);
+			usage(options, "CopyRecord");
 			System.exit(ERROR_VALUE);
 		}
 		catch (Exception e1) {
@@ -722,15 +403,6 @@ public class CopyRecord {
 
 	// MARK: - Usage
 	/**
-	 * show usage.
-	 * @param options argument options.
-	 */
-	private static void usage(Options options) {
-		HelpFormatter formatter = new HelpFormatter();
-		formatter.printHelp("CopyRecord", options);
-	}
-
-	/**
 	 * show error message for keys anv values counts are not same.
 	 */
 	private static void keyAndValueCountMustSame() {
@@ -740,39 +412,8 @@ public class CopyRecord {
 	/**
 	 * show error message for columns and replaces counts are not same.
 	 */
-	private static void columnAndReplaceCountMustSame() {
+	@Override
+	protected void columnAndReplaceCountMustSame() {
 		System.out.println("[ERROR] column and replace arguments count must be same.");
-	}
-
-	/**
-	 * show error message for prompt and password assigned at same time.
-	 */
-	private static void doNotAssignPromptAndPasswordAtSameTime() {
-		System.out.println("[ERROR] do not assign prompt and password at same time.");
-	}
-
-	/**
-	 * show error message options of too much values.
-	 * @param argName argument name.
-	 */
-	private static void noMultipleOptions(String argName) {
-		System.out.println("[ERROR] you have assigned too much values for " + argName);
-	}
-
-	/**
-	 * show error message duplicate value has found.
-	 * @param argName argument name.
-	 */
-	private static void duplicateValueFound(String argName) {
-		System.out.println("[ERROR] you have assigned duplicate values for " + argName);
-	}
-
-	/**
-	 * show error message duplicate value has found in another argument.
-	 * @param argName argument name.
-	 * @param argName2 another argument name.
-	 */
-	private static void duplicateValueFoundIn(String argName, String argName2) {
-		System.out.println("[ERROR] you cannot assign " + argName + " which assigned in " + argName2);
 	}
 }
