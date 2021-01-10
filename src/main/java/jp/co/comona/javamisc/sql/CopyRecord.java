@@ -1,4 +1,4 @@
-package jp.co.comona.javamisc;
+package jp.co.comona.javamisc.sql;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -25,6 +25,8 @@ import java.text.SimpleDateFormat;
 import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
+
+import jp.co.comona.javamisc.Util;
 
 /**
  * copy SQL record tool.
@@ -515,7 +517,7 @@ public class CopyRecord {
 		userName = users[0];
 
 		keys = cmd.getOptionValues('k');	// key & value count check.
-		if (hasDuplicateValues(keys)) {
+		if (Util.hasDuplicateValuesIgnoreCase(keys)) {
 			usage(options);
 			duplicateValueFound("key name");
 			return -1;
@@ -527,7 +529,7 @@ public class CopyRecord {
 			return -1;
 		}
 		columns = cmd.getOptionValues('c');	// column & replace count check.
-		if (hasDuplicateValues(columns)) {
+		if (Util.hasDuplicateValuesIgnoreCase(columns)) {
 			usage(options);
 			duplicateValueFound("column name to replace value");
 			return -1;
@@ -555,12 +557,12 @@ public class CopyRecord {
 		}
 		defaults = cmd.getOptionValues('D');	// default value columns.
 		if (defaults != null) {
-			if (hasDuplicateValues(defaults)) {
+			if (Util.hasDuplicateValuesIgnoreCase(defaults)) {
 				usage(options);
 				duplicateValueFound("column name to use default value");
 				return -1;
 			}
-			if (hasDuplicateValues(defaults, columns)) {
+			if (Util.hasDuplicateValuesIgnoreCase(defaults, columns)) {
 				usage(options);
 				duplicateValueFoundIn("use column name to use default value", "column name to replace value");
 				return -1;
@@ -568,18 +570,18 @@ public class CopyRecord {
 		}
 		nowColumns = cmd.getOptionValues('n');	// now value columns.
 		if (nowColumns != null) {
-			if (hasDuplicateValues(nowColumns)) {
+			if (Util.hasDuplicateValuesIgnoreCase(nowColumns)) {
 				usage(options);
 				duplicateValueFound("use NOW() for the column");
 				return -1;
 			}
-			if (hasDuplicateValues(nowColumns, columns)) {
+			if (Util.hasDuplicateValuesIgnoreCase(nowColumns, columns)) {
 				usage(options);
 				duplicateValueFoundIn("use NOW() for the column", "column name to replace value");
 				return -1;
 			}
 			if (defaults != null) {
-				if (hasDuplicateValues(nowColumns, defaults)) {
+				if (Util.hasDuplicateValuesIgnoreCase(nowColumns, defaults)) {
 					usage(options);
 					duplicateValueFoundIn("use NOW() for the column", "use column name to use default value");
 					return -1;
@@ -588,25 +590,25 @@ public class CopyRecord {
 		}
 		nulls = cmd.getOptionValues('N');	// null value columns.
 		if (nulls != null) {
-			if (hasDuplicateValues(nulls)) {
+			if (Util.hasDuplicateValuesIgnoreCase(nulls)) {
 				usage(options);
 				duplicateValueFound("use NOW() for the column");
 				return -1;
 			}
-			if (hasDuplicateValues(nulls, columns)) {
+			if (Util.hasDuplicateValuesIgnoreCase(nulls, columns)) {
 				usage(options);
 				duplicateValueFoundIn("use null for the column", "column name to replace value");
 				return -1;
 			}
 			if (defaults != null) {
-				if (hasDuplicateValues(nulls, defaults)) {
+				if (Util.hasDuplicateValuesIgnoreCase(nulls, defaults)) {
 					usage(options);
 					duplicateValueFoundIn("use null for the column", "use NOW() for the column");
 					return -1;
 				}
 			}
 			if (nowColumns != null) {
-				if (hasDuplicateValues(nulls, nowColumns)) {
+				if (Util.hasDuplicateValuesIgnoreCase(nulls, nowColumns)) {
 					usage(options);
 					duplicateValueFoundIn("use null for the column", "use column name to use default value");
 					return -1;
@@ -615,40 +617,6 @@ public class CopyRecord {
 		}
 
 		return 0;
-	}
-
-	/**
-	 * check for the duplication.
-	 * @param keys string array to check.
-	 * @return true when duplication found.
-	 */
-	private static boolean hasDuplicateValues(String[] keys) {
-		for (int i = 0; i < keys.length - 1; i++) {
-			String o1 = keys[i];
-			for (int j = i + 1; j < keys.length; j++) {
-				String o2 = keys[j];
-				if (o1.compareToIgnoreCase(o2) == 0) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * check for the duplication.
-	 * @param keys string array to check.
-	 * @return true when duplication found.
-	 */
-	private static boolean hasDuplicateValues(String[] keys, String[] keys2) {
-		for (String o1 : keys) {
-			for (String o2 : keys2) {
-				if (o1.compareToIgnoreCase(o2) == 0) {
-					return true;
-				}
-			}
-		}
-		return false;
 	}
 
 	/**
