@@ -53,6 +53,8 @@ public class CopyRecord {
 	private String[] columns = null;
 	private String[] replaces = null;
 	private String[] defaults = null;
+	private String[] nowColumns = null;
+	private String[] nulls = null;
 	private boolean prompt = false;
 
 	// MARK: - Constructor
@@ -195,6 +197,14 @@ public class CopyRecord {
 					sql.append("DEFAULT");
 					defaultCount++;
 				}
+				else if (isNowValueColumn(columnIndex)) {
+					sql.append("NOW()");
+					defaultCount++;
+				}
+				else if (isNullValueColumn(columnIndex)) {
+					sql.append("NULL");
+					defaultCount++;
+				}
 				else {
 					sql.append('?');
 				}
@@ -211,7 +221,7 @@ public class CopyRecord {
 				String colName = meta.getColumnName(columnIndex);
 				int columnType = meta.getColumnType(columnIndex);
 				if (!putColumnValue(ps, columnIndexMap, colName, columnType)) {
-					if (isDefaultValueColumn(columnIndex)) {
+					if (isDefaultValueColumn(columnIndex) || isNowValueColumn(columnIndex) || isNullValueColumn(columnIndex)) {
 						defaultCount++;
 					} else {
 						copyColumn(rs, columnIndex, ps, columnIndex - defaultCount, columnType);
@@ -338,6 +348,12 @@ public class CopyRecord {
 				break;
 			case Types.TIME:
 				ps.setTime(psIndex, rs.getTime(rsIndex));
+				break;
+			case Types.BLOB:
+				ps.setBlob(psIndex, rs.getBlob(rsIndex));
+				break;
+			case Types.CLOB:
+				ps.setClob(psIndex, rs.getClob(rsIndex));
 				break;
 
 			default:
@@ -546,8 +562,55 @@ public class CopyRecord {
 			}
 			if (hasDuplicateValues(defaults, columns)) {
 				usage(options);
-				duplicateValueFoundIn();
+				duplicateValueFoundIn("use column name to use default value", "column name to replace value");
 				return -1;
+			}
+		}
+		nowColumns = cmd.getOptionValues('n');	// now value columns.
+		if (nowColumns != null) {
+			if (hasDuplicateValues(nowColumns)) {
+				usage(options);
+				duplicateValueFound("use NOW() for the column");
+				return -1;
+			}
+			if (hasDuplicateValues(nowColumns, columns)) {
+				usage(options);
+				duplicateValueFoundIn("use NOW() for the column", "column name to replace value");
+				return -1;
+			}
+			if (defaults != null) {
+				if (hasDuplicateValues(nowColumns, defaults)) {
+					usage(options);
+					duplicateValueFoundIn("use NOW() for the column", "use column name to use default value");
+					return -1;
+				}
+			}
+		}
+		nulls = cmd.getOptionValues('N');	// null value columns.
+		if (nulls != null) {
+			if (hasDuplicateValues(nulls)) {
+				usage(options);
+				duplicateValueFound("use NOW() for the column");
+				return -1;
+			}
+			if (hasDuplicateValues(nulls, columns)) {
+				usage(options);
+				duplicateValueFoundIn("use null for the column", "column name to replace value");
+				return -1;
+			}
+			if (defaults != null) {
+				if (hasDuplicateValues(nulls, defaults)) {
+					usage(options);
+					duplicateValueFoundIn("use null for the column", "use NOW() for the column");
+					return -1;
+				}
+			}
+			if (nowColumns != null) {
+				if (hasDuplicateValues(nulls, nowColumns)) {
+					usage(options);
+					duplicateValueFoundIn("use null for the column", "use column name to use default value");
+					return -1;
+				}
 			}
 		}
 
@@ -608,6 +671,40 @@ public class CopyRecord {
 		return false;
 	}
 
+	/**
+	 * is now value column.
+	 * @param columnIndex column index.
+	 * @return true if use NOW().
+	 * @throws SQLException when SQL error.
+	 */
+	private boolean isNowValueColumn(int columnIndex) throws SQLException {
+		if (nowColumns != null) {
+			for (String now : nowColumns) {
+				if (now.compareToIgnoreCase(meta.getColumnName(columnIndex)) == 0) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * is null value column.
+	 * @param columnIndex column index.
+	 * @return true if use null.
+	 * @throws SQLException when SQL error.
+	 */
+	private boolean isNullValueColumn(int columnIndex) throws SQLException {
+		if (nulls != null) {
+			for (String nullCol : nulls) {
+				if (nullCol.compareToIgnoreCase(meta.getColumnName(columnIndex)) == 0) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	// MARK: - Entry Point
 	/**
 	 * entry point.
@@ -627,6 +724,8 @@ public class CopyRecord {
 		options.addOption("c", "column-name", true, "column name to replace value");
 		options.addOption("r", "replace-value", true, "replace value for column");
 		options.addOption("D", "default-value", true, "use default value for the column");
+		options.addOption("n", "now", true, "use NOW() for the column");
+		options.addOption("N", "null", true, "use null for the column");
 		CommandLineParser parser = new DefaultParser();
 		try {
 			CommandLine cmd = parser.parse(options, args);
@@ -702,8 +801,10 @@ public class CopyRecord {
 
 	/**
 	 * show error message duplicate value has found in another argument.
+	 * @param argName argument name.
+	 * @param argName2 another argument name.
 	 */
-	private static void duplicateValueFoundIn() {
-		System.out.println("[ERROR] you cannot use column name to use default value which assigned in column name to replace value");
+	private static void duplicateValueFoundIn(String argName, String argName2) {
+		System.out.println("[ERROR] you cannot "+ argName + " which assigned in " + argName2);
 	}
 }
