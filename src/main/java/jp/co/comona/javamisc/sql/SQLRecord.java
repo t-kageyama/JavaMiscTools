@@ -82,7 +82,7 @@ abstract public class SQLRecord {
 	protected boolean connect() throws ClassNotFoundException, SQLException {
 		Class.forName("com.mysql.jdbc.Driver");	// load MySQL database driver.
 
-		String url =  "jdbc:mysql://" + hostName + ":3306/" + databaseName + "?useUnicode=true&amp;autoReconnect=true&amp;characterEncoding=utf8&amp;useSSL=false";
+		String url =  "jdbc:mysql://" + hostName + ":3306/" + databaseName + "?useUnicode=true&autoReconnect=true&characterEncoding=utf8&useSSL=false";
 		if (prompt) {
 			// try 3 times.
 			for (int i = 0; i < 3; i++) {
