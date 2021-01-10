@@ -63,7 +63,7 @@ public class InsertRecord extends SQLRecord {
 			}
 		}
 		sql.append(SQL_VALUES_END);
-		System.out.println(sql.toString());
+		//System.out.println(sql.toString());
 
 		// create prepared statement.
 		try (PreparedStatement ps = con.prepareStatement(sql.toString())) {
