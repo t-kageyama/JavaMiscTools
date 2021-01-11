@@ -72,6 +72,46 @@ abstract public class SQLRecord {
 		this.cmd = cmd;
 	}
 
+	// MARK: - Getters
+	/**
+	 * get column count.
+	 * @return column count.
+	 */
+	protected int getColumnCount() {
+		if (columns == null) {
+			return 0;
+		}
+		else {
+			return columns.length;
+		}
+	}
+
+	/**
+	 * get now column count.
+	 * @return now column count.
+	 */
+	protected int getNowCount() {
+		if (nowColumns == null) {
+			return 0;
+		}
+		else {
+			return nowColumns.length;
+		}
+	}
+
+	/**
+	 * get null column count.
+	 * @return null column count.
+	 */
+	protected int getNullCount() {
+		if (nulls == null) {
+			return 0;
+		}
+		else {
+			return nulls.length;
+		}
+	}
+
 	// MARK: - SQL
 	/**
 	 * connect to database.
@@ -202,10 +242,12 @@ abstract public class SQLRecord {
 	 * @return true if index put to the map.
 	 */
 	protected boolean putColumnIndex(Map<String, Integer> columnIndexMap, String colName, int columnIndex) {
-		for (String column : columns) {
-			if (column.compareToIgnoreCase(colName) == 0) {
-				columnIndexMap.put(column, columnIndex);
-				return true;
+		if (columns != null) {
+			for (String column : columns) {
+				if (column.compareToIgnoreCase(colName) == 0) {
+					columnIndexMap.put(column, columnIndex);
+					return true;
+				}
 			}
 		}
 		return false;
@@ -221,54 +263,56 @@ abstract public class SQLRecord {
 	 * @throws Exception when error.
 	 */
 	protected boolean putColumnValue(PreparedStatement ps, Map<String, Integer> columnIndexMap, String colName, int columnType) throws Exception {
-		for (int i = 0; i < columns.length; i++) {
-			String column = columns[i];
-			if (column.compareToIgnoreCase(colName) == 0) {
-				Integer indexObj = columnIndexMap.get(column);
-				if (indexObj != null) {
-					String value = replaces[i];
-					int index = indexObj;
-					switch (columnType) {
-						case Types.INTEGER:
-							ps.setInt(index, Integer.parseInt(value));
-							break;
-						case Types.BIGINT:
-						case Types.DECIMAL:
-							ps.setLong(index, Long.parseLong(value));
-							break;
-						case Types.SMALLINT:
-							ps.setShort(index, Short.parseShort(value));
-							break;
-						case Types.TINYINT:
-							short v = Short.parseShort(value);
-							if ((v > 127) || (v < -128)) {
-								throw new Exception("TINYINT out of range at " + colName);
-							}
-							ps.setInt(index, v);
-							break;
-						case Types.FLOAT:
-							ps.setFloat(index, Float.parseFloat(value));
-							break;
-						case Types.DOUBLE:
-						case Types.NUMERIC:
-							ps.setDouble(index, Double.parseDouble(value));
-							break;
-						case Types.DATE:
-							ps.setDate(index, convertDate(value));
-							break;
-						case Types.TIMESTAMP:
-							ps.setTimestamp(index, convertTimestamp(value));
-							break;
-						case Types.TIME:
-							ps.setTime(index, convertTime(value));
-							break;
+		if (columns != null) {
+			for (int i = 0; i < columns.length; i++) {
+				String column = columns[i];
+				if (column.compareToIgnoreCase(colName) == 0) {
+					Integer indexObj = columnIndexMap.get(column);
+					if (indexObj != null) {
+						String value = replaces[i];
+						int index = indexObj;
+						switch (columnType) {
+							case Types.INTEGER:
+								ps.setInt(index, Integer.parseInt(value));
+								break;
+							case Types.BIGINT:
+							case Types.DECIMAL:
+								ps.setLong(index, Long.parseLong(value));
+								break;
+							case Types.SMALLINT:
+								ps.setShort(index, Short.parseShort(value));
+								break;
+							case Types.TINYINT:
+								short v = Short.parseShort(value);
+								if ((v > 127) || (v < -128)) {
+									throw new Exception("TINYINT out of range at " + colName);
+								}
+								ps.setInt(index, v);
+								break;
+							case Types.FLOAT:
+								ps.setFloat(index, Float.parseFloat(value));
+								break;
+							case Types.DOUBLE:
+							case Types.NUMERIC:
+								ps.setDouble(index, Double.parseDouble(value));
+								break;
+							case Types.DATE:
+								ps.setDate(index, convertDate(value));
+								break;
+							case Types.TIMESTAMP:
+								ps.setTimestamp(index, convertTimestamp(value));
+								break;
+							case Types.TIME:
+								ps.setTime(index, convertTime(value));
+								break;
 
-						default:
-							ps.setString(index, value);
-							break;
+							default:
+								ps.setString(index, value);
+								break;
+						}
 					}
+					return indexObj != null;
 				}
-				return indexObj != null;
 			}
 		}
 		return false;
@@ -425,16 +469,20 @@ abstract public class SQLRecord {
 	 */
 	protected boolean checkColumnsAndReplaces() {
 		columns = cmd.getOptionValues('c');	// column & replace count check.
-		if (Util.hasDuplicateValuesIgnoreCase(columns)) {
-			usage(options);
-			duplicateValueFound("column name to replace value");
-			return false;
+		if (columns != null) {
+			if (Util.hasDuplicateValuesIgnoreCase(columns)) {
+				usage(options);
+				duplicateValueFound("column name to replace value");
+				return false;
+			}
 		}
 		replaces = cmd.getOptionValues(replaceValueShortOption());
-		if (columns.length != replaces.length) {
-			usage(options);
-			columnAndReplaceCountMustSame();
-			return false;
+		if (replaces != null) {
+			if (columns.length != replaces.length) {
+				usage(options);
+				columnAndReplaceCountMustSame();
+				return false;
+			}
 		}
 		return true;
 	}
@@ -451,10 +499,12 @@ abstract public class SQLRecord {
 				duplicateValueFound("use NOW() for the column");
 				return false;
 			}
-			if (Util.hasDuplicateValuesIgnoreCase(nowColumns, columns)) {
-				usage(options);
-				duplicateValueFoundIn("use NOW() for the column", "column name to replace value");
-				return false;
+			if (columns != null) {
+				if (Util.hasDuplicateValuesIgnoreCase(nowColumns, columns)) {
+					usage(options);
+					duplicateValueFoundIn("use NOW() for the column", "column name to replace value");
+					return false;
+				}
 			}
 		}
 		return true;
@@ -472,10 +522,12 @@ abstract public class SQLRecord {
 				duplicateValueFound("use NOW() for the column");
 				return false;
 			}
-			if (Util.hasDuplicateValuesIgnoreCase(nulls, columns)) {
-				usage(options);
-				duplicateValueFoundIn("use null for the column", "column name to replace value");
-				return false;
+			if (columns != null) {
+				if (Util.hasDuplicateValuesIgnoreCase(nulls, columns)) {
+					usage(options);
+					duplicateValueFoundIn("use null for the column", "column name to replace value");
+					return false;
+				}
 			}
 			if (nowColumns != null) {
 				if (Util.hasDuplicateValuesIgnoreCase(nulls, nowColumns)) {

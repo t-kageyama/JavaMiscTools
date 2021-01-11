@@ -92,8 +92,7 @@ public class InsertRecord extends SQLRecord {
 			usage(options);
 			return 1;
 		}
-		else if (!cmd.hasOption('d') || !cmd.hasOption('t') || !cmd.hasOption('u') ||
-				!cmd.hasOption('c') || !cmd.hasOption(REPLACE_SHORT_OPTION)) {
+		else if (!cmd.hasOption('d') || !cmd.hasOption('t') || !cmd.hasOption('u')) {
 			usage(options);
 			return -1;
 		}
