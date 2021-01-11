@@ -254,7 +254,7 @@ public class CopyRecord extends SQLRecord {
 			return 1;
 		}
 		else if (!cmd.hasOption('d') || !cmd.hasOption('t') || !cmd.hasOption('u') ||
-				!cmd.hasOption('k') || !cmd.hasOption('v') || !cmd.hasOption('c') || !cmd.hasOption('r')) {
+				!cmd.hasOption('k') || !cmd.hasOption('v')) {
 			usage(options);
 			return -1;
 		}
@@ -296,10 +296,12 @@ public class CopyRecord extends SQLRecord {
 				duplicateValueFound("column name to use default value");
 				return -1;
 			}
-			if (Util.hasDuplicateValuesIgnoreCase(defaults, columns)) {
-				usage(options);
-				duplicateValueFoundIn("use column name to use default value", "column name to replace value");
-				return -1;
+			if (columns != null) {
+				if (Util.hasDuplicateValuesIgnoreCase(defaults, columns)) {
+					usage(options);
+					duplicateValueFoundIn("use column name to use default value", "column name to replace value");
+					return -1;
+				}
 			}
 		}
 		if (!checkNowColumns()) {
