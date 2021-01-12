@@ -9,7 +9,7 @@ MY_DIR_NAME=`dirname $0`
 SHELL_SCRIP_DIR=`cd $MY_DIR_NAME;pwd`
 cd $SHELL_SCRIP_DIR
 
-VERSION=1.0.0-SNAPSHOT
+VERSION=1.0.0
 PACKAGE_NAME=jp.co.comona.javamisc.sql
 MAIN_CLASS=CopyRecord
 JAR_NAME=../build/libs/JavaMiscTools-$VERSION-all.jar
